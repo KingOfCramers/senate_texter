@@ -9,17 +9,23 @@ var appRouter = (app, db) => {
   
   const proPublicaApiOptions = { headers: { 'X-API-Key': process.env.PRO_PUBLICA }}; // Set options for Pro Publica API.
   
+  const parseMessage = (message) => {
+    if(message.split(" ").length !== 2){
+      return null;
+    };  
+    let name = message.split(" ").map(name => name.toLowerCase());
+    return name;
+  };
+
   const handleGetCommittees = async (memUri) => {
     let { data } = await axios.get(memUri, proPublicaApiOptions);
     let currentCommittees = data.results[0].roles.filter(role => role.congress == '116' )[0].committees; // .filter((mem) => mem.first_name.toLowerCase() === first && mem.last_name.toLowerCase() === last);
     return currentCommittees.length > 0 ? currentCommittees.map(committee => committee.code) : null
   };
 
-  const handleGetUri = async (sms) => {
-    let first = sms.split(" ")[0];
-    let last = sms.split(" ")[1];
+  const handleGetUri = async (memberName) => {
     let { data } = await axios.get("https://api.propublica.org/congress/v1/116/senate/members.json", proPublicaApiOptions);
-    let memberData = data.results[0].members.filter((mem) => mem.first_name.toLowerCase() === first && mem.last_name.toLowerCase() === last);
+    let memberData = data.results[0].members.filter((mem) => mem.first_name.toLowerCase() === memberName[0] && mem.last_name.toLowerCase() === memberName[1]);
     return memberData.length > 0 ? memberData[0].api_uri : null;
   };
 
@@ -61,7 +67,13 @@ var appRouter = (app, db) => {
   app.post("/sms", async(req,res) => {
     const msg = req.body;
     let { Body, From } = msg;
-    let memUri = await handleGetUri(Body); // Get member's URI (url string)
+
+    let memberName = await parseMessage(Body);
+    if(!memberName){
+      handleNoDataFound('Please enter a first and last name.', res);
+    }
+    
+    let memUri = await handleGetUri(memberName); // Get member's URI (url string)
     if (!memUri) {
       return handleNoDataFound('Sorry, that member could not be found.', res);
     };
