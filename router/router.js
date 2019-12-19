@@ -1,7 +1,7 @@
 const MessagingResponse = require('twilio').twiml.MessagingResponse;
 const { escaper } = require("../util");
 const { find } = require("../mongodb/methods/");
-const { sfrc, hfac, sasc } = require("../mongodb/schemas/committees");
+const { sfrc, hfac, ssev } = require("../mongodb/schemas/committees");
 const moment = require("moment");
 const axios = require("axios");
 
@@ -30,10 +30,33 @@ var appRouter = (app, db) => {
     res.end(twiml.toString());
   };
 
-  const getHearingSked = async (id, theDate) => {
-    console.log(id, theDate);
-    return 'ok';
+  const parseData = (data) => {
+    return JSON.stringify(data); /// This will eventually turn into a real parsing option...
   };
+
+  const sendCommitteeData = async (successMessage, res) => {
+    const twiml = new MessagingResponse();
+    twiml.message(successMessage);
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
+  };
+
+  const getHearingSked = async (committeeSchema, theDate) => {
+    let hearings = await find(committeeSchema);
+    hearings = hearings.map(hearing => ({ compare: moment(`${hearing.date} ${hearing.time}`).unix(), ...hearing }));
+    let newHearings = hearings.filter(hearing => hearing.compare > theDate);
+    return newHearings;
+  };
+
+  const handleGetCommitteeSchemas = (committees) => {
+    return committees.map(committee => {
+      switch(committee.toLowerCase()){
+        case 'ssev':
+          return ssev;
+          /// And so on and so forth for all the committees...          
+      }
+    });
+  }
 
   app.post("/sms", async(req,res) => {
     const msg = req.body;
@@ -48,18 +71,25 @@ var appRouter = (app, db) => {
       return handleNoDataFound('Sorry, that member does not appear to have any committee assignments.', res);
     };
 
-    let promises = memCommittees.map(async(id) => await getHearingSked(id, moment().format('llll'))); // Get the schedule for each hearing.
-    Promise.all(promises)
-      .then(results => {
-        if(results.length > 0){
-          console.log(results);
-        } else {
-          handleNoDataFound('Sorry, that member does not appear to have any hearings coming up.', res);
-        }
-      })
-      .catch(err => {
-        handleNoDataFound('Sorry, something went wrong with our server.', res);
-      });
+    /// THIS IS ONLY HERE, the i === 0 thing, because we don't have the other committees set up yet.
+    let committeeSchemas = handleGetCommitteeSchemas(memCommittees);
+    let promises = committeeSchemas.map(async(committeeSchema, i) => i == 0 ? await getHearingSked(committeeSchema, moment().unix()) : Promise.resolve([])); // Get the schedule for each hearing.
+    let hearingData = await Promise.all(promises);
+    let totalHearings = hearingData.reduce((agg, committee) => {
+      agg = agg + committee.length;
+      return agg;
+    }, 0);
+
+    console.log(hearingData);
+    console.log(totalHearings);
+    
+    if(totalHearings == 0){
+      return handleNoDataFound('Sorry, that member does not appear to have any upcoming committees.', res);
+    };
+    
+    let message = parseData(hearingData);
+    sendCommitteeData(message, res);
+
   });
 }
 

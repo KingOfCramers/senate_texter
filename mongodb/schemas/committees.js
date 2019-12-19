@@ -49,7 +49,7 @@ module.exports = {
             require: true
         }
     }),
-    sasc: mongoose.model('sasc', {
+    ssev: mongoose.model('ssev', {
         link: {
             type: String,
             require: true
