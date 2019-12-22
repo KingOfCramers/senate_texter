@@ -10,7 +10,7 @@ const app = express();
 
 const connectToMongoDB = async () => {
 	try {
-		await mongoose.connect("mongodb://localhost:27017/resources", { useNewUrlParser: true, useUnifiedTopology: true });
+		let db = await mongoose.connect("mongodb://localhost:27017/text_app", { useNewUrlParser: true, useUnifiedTopology: true });
     } catch(err){
 		console.log(err);
         throw Error // return logger.error(`Could not connect to database. `, err);
