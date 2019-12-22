@@ -15,5 +15,9 @@ module.exports = mongoose.model('user', {
         type: Number,
         require: false,
         default: 0 
+    },
+    uriString: {
+        type: String,
+	require: false,
     }
 });

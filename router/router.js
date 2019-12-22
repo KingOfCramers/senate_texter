@@ -1,5 +1,5 @@
 const MessagingResponse = require('twilio').twiml.MessagingResponse;
-const { find } = require("../mongodb/methods/");
+const { find, updateUri, updateLastRsp } = require("../mongodb/methods/");
 const users = require("../mongodb/schemas/users");
 const { sfrc, hfac, ssev } = require("../mongodb/schemas/committees");
 const moment = require("moment");
@@ -9,15 +9,30 @@ var appRouter = (app, db) => {
   
   const proPublicaApiOptions = { headers: { 'X-API-Key': process.env.PRO_PUBLICA }}; // Set options for Pro Publica API.
   
+  const promptNextQuestion = async (successMessage, res) => {
+    const twiml = new MessagingResponse();
+    twiml.message(successMessage);
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
+  };
+
+  const handleNoDataFound = async (failMessage, res) => {
+    const twiml = new MessagingResponse();
+    twiml.message(failMessage);
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
+  };
+
+
   const findOrCreateUser = async ({ number, text }) => { // Newly created user will have lastRsp = 1;
     let query = { number };
-    let update = { number, text, $inc: { lastRsp: 1 }};
+    let update = { number, text };
     let options = { upsert: true, new: true, setDefaultsOnInsert: true };
     let result = await users.findOneAndUpdate(query, update, options); // function...
     return result
   };
 
-  const parseMessage = (message) => {
+  const parseName = (message) => {
     if(message.split(" ").length !== 2){
       return null;
     }
@@ -42,13 +57,6 @@ var appRouter = (app, db) => {
     return JSON.stringify(data); /// This will eventually turn into a real parsing option...
   };
 
-  const sendCommitteeData = async (successMessage, res) => {
-    const twiml = new MessagingResponse();
-    twiml.message(successMessage);
-    res.writeHead(200, { 'Content-Type': 'text/xml' });
-    res.end(twiml.toString());
-  };
-
   const getHearingSked = async (committeeSchema, theDate) => {
     let hearings = await find(committeeSchema);
     hearings = hearings.map(hearing => ({ compare: moment(`${hearing.date} ${hearing.time}`).unix(), ...hearing }));
@@ -66,16 +74,40 @@ var appRouter = (app, db) => {
     });
   };
 
-  const handleNoDataFound = async (failMessage, res) => {
-    const twiml = new MessagingResponse();
-    twiml.message(failMessage);
-    res.writeHead(200, { 'Content-Type': 'text/xml' });
-    res.end(twiml.toString());
+  const handleGetMemberUri = async(textBody, res) => {
+     let memberName = await parseName(textBody);
+     if(!memberName){
+	     return null;
+     };
+     
+     let memUri = await handleGetUri(memberName); // Get member's URI (url string)
+     if (!memUri) {
+	     return null;
+     };
+     
+     return memUri;
   };
 
-  const handleRoute = async (lastRsp, textBody) => {
-  // Handle the route querying...
-  }
+	const handleUpdateUserUri = async(uri, from) => {
+	  await updateUri(uri, from);
+	};
+
+	const handleIterateUserLastRsp = async(num, from) => {
+	  await updateLastRsp(num, from); 
+	};
+
+  const handleRoute = async (lastRsp, textBody, From, res) => {
+    if(lastRsp == 0){
+      let memUri = await handleGetMemberUri(textBody, res);
+      if(!memUri){
+        return handleNoDataFound('Please enter a first and last name.', res);
+      } else {
+        await handleUpdateUserUri(memUri, From);
+        await handleIterateUserLastRsp(1, From);  
+        await promptNextQuestion("What would you like to know?", res);
+      }
+    };
+  };
 
   app.post("/sms", async(req,res) => {
 
@@ -86,41 +118,28 @@ var appRouter = (app, db) => {
     
     let user = await findOrCreateUser({ number: Number.parseInt(From), text: Body });
     let { lastRsp, textBody } = user;
-    let properResponse = await handleRoute(lastRsp, textBody);
-    res.json({});
-    res.end();
-    
-    //  Based on stage value, run different handler... 
-     let memberName = await parseMessage(Body);
-     if(!memberName){
-       handleNoDataFound('Please enter a first and last name.', res);
-     }
-    
-     let memUri = await handleGetUri(memberName); // Get member's URI (url string)
-     if (!memUri) {
-       return handleNoDataFound('Sorry, that member could not be found.', res);
-     };
+    await handleRoute(lastRsp, Body, From, res);
 
-     let memCommittees = await handleGetCommittees(memUri); // Get member's committee assignments (list)
-     if (!memCommittees) {
-       return handleNoDataFound('Sorry, that member does not appear to have any committee assignments.', res);
-     };
+    //  let memCommittees = await handleGetCommittees(memUri); // Get member's committee assignments (list)
+    //  if (!memCommittees) {
+    //    return handleNoDataFound('Sorry, that member does not appear to have any committee assignments.', res);
+    //  };
 
-     /// THIS IS ONLY HERE, the i === 0 thing, because we don't have the other committees set up yet.
-     let committeeSchemas = handleGetCommitteeSchemas(memCommittees);
-     let promises = committeeSchemas.map(async(committeeSchema, i) => i == 0 ? await getHearingSked(committeeSchema, moment().unix()) : Promise.resolve([])); // Get the schedule for each hearing.
-     let hearingData = await Promise.all(promises);
-     let totalHearings = hearingData.reduce((agg, committee) => {
-       agg = agg + committee.length;
-       return agg;
-     }, 0);
+    //  /// THIS IS ONLY HERE, the i === 0 thing, because we don't have the other committees set up yet.
+    //  let committeeSchemas = handleGetCommitteeSchemas(memCommittees);
+    //  let promises = committeeSchemas.map(async(committeeSchema, i) => i == 0 ? await getHearingSked(committeeSchema, moment().unix()) : Promise.resolve([])); // Get the schedule for each hearing.
+    //  let hearingData = await Promise.all(promises);
+    //  let totalHearings = hearingData.reduce((agg, committee) => {
+    //    agg = agg + committee.length;
+    //    return agg;
+    //  }, 0);
     
-     if(totalHearings == 0){
-       return handleNoDataFound('Sorry, that member does not appear to have any upcoming committees.', res);
-     };
+    //  if(totalHearings == 0){
+    //    return handleNoDataFound('Sorry, that member does not appear to have any upcoming committees.', res);
+    //  };
     
-     let finalResponse = parseData(hearingData);
-     sendCommitteeData(finalResponse, res);
+    //  let finalResponse = parseData(hearingData);
+    //  sendCommitteeData(finalResponse, res);
 
   });
 }
