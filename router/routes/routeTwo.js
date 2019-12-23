@@ -1,7 +1,6 @@
 const { promptNextQuestion, handleNoDataFound } = require("./texts.js");
 const { updateLastRsp } = require("../../mongodb/methods/");
 const axios = require("axios");
-const { replacer } = require("../../util");
 
 const proPublicaApiOptions = { headers: { 'X-API-Key': process.env.PRO_PUBLICA }}; // Set options for Pro Publica API.
 
@@ -18,8 +17,13 @@ const handleGetContactInfo = async (uri) => {
 };
 
 const chooseQuery = async(text, uriString, From, res) => {
-	switch(text){
+	switch(text.toLowerCase()){
 	  case "contact":
+    case "contact info":
+    case "phone":
+    case "phone number":
+    case "contact information":
+    case "office":
 		  let contact = await handleGetContactInfo(uriString);
 		  return contact;
 	  case "committees":
@@ -34,7 +38,7 @@ module.exports = async(text, user, From, res) => {
       if(!data){
         return handleNoDataFound('That is not a valid query.', res);
       } else {
-        await updateLastRsp(1, From);  
+        await updateLastRsp(0, From);  
         await promptNextQuestion(data, res);
       }
 };

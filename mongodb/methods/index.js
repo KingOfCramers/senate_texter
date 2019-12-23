@@ -10,6 +10,6 @@ module.exports = {
 	    await users.findOneAndUpdate({ number: from}, { uriString: uri}); 
     },
     updateLastRsp: async(num, from) => {
-	    await users.findOneAndUpdate({ number: from }, { $inc: { lastRsp: num }});
+	    await users.findOneAndUpdate({ number: from }, { $set: { lastRsp: num }});
     }
 }
