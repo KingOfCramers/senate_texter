@@ -9,7 +9,7 @@ const handleGetContactInfo = async (uri) => {
   if(data.results.length > 0){
     let currentRole = data.results[0].roles.filter(role => role.congress == "116");
     let { office, phone, fax } = currentRole[0];
-    let results = `Office: ${office}\n Phone: ${phone}\n Fax: ${fax}`;
+    let results = `${office}\n Phone: ${phone}\n Fax: ${fax}`;
 	  return results
   } else {
     return "We could not find the contact info."
@@ -36,7 +36,8 @@ const chooseQuery = async(text, uriString, From, res) => {
 module.exports = async(text, user, From, res) => {
       let data = await chooseQuery(text, user, From);
       if(!data){
-        return handleNoDataFound('That is not a valid query.', res);
+        await handleNoDataFound('That is not a valid query.', res);
+        await updateLastRsp(0, From);  
       } else {
         await updateLastRsp(0, From);  
         await promptNextQuestion(data, res);
