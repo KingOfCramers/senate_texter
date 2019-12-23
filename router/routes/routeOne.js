@@ -35,10 +35,10 @@ const handleGetMemberUri = async(textBody, res) => {
 module.exports = async(textBody, From, res) => {
       let memUri = await handleGetMemberUri(textBody, res);
       if(!memUri){
-        return handleNoDataFound('Please enter a valid first and last name.', res); 
+        return handleNoDataFound("I'm sorry, we couldn't find that member. Are you using a nickname?", res); 
       } else {
         await updateUri(memUri, From);
         await updateLastRsp(1, From);  
-        await promptNextQuestion("What would you like to know?", res);
+        await promptNextQuestion("What would you like to know?\n1) Contact\n2) Committees\n3)Voting Record", res);
       }
 };
