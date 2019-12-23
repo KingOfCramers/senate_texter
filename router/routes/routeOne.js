@@ -1,5 +1,5 @@
 const { promptNextQuestion, handleNoDataFound } = require("./texts.js");
-const { find, updateUri, updateLastRsp } = require("../../mongodb/methods/");
+const { updateUri, updateLastRsp } = require("../../mongodb/methods/");
 const axios = require("axios");
 
 

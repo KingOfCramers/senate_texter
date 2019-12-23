@@ -4,10 +4,9 @@ const { sfrc, hfac, ssev } = require("../mongodb/schemas/committees");
 const moment = require("moment");
 const axios = require("axios");
 const routeOne = require("./routes/routeOne.js");
+const routeTwo = require("./routes/routeTwo.js");
 
 var appRouter = (app, db) => {
-  
-  const proPublicaApiOptions = { headers: { 'X-API-Key': process.env.PRO_PUBLICA }}; // Set options for Pro Publica API.
   
   const findOrCreateUser = async ({ number, text }) => { // Newly created user will have lastRsp = 1;
     let query = { number };
@@ -17,20 +16,6 @@ var appRouter = (app, db) => {
     return result
   };
 
-  const parseName = (message) => {
-    if(message.split(" ").length !== 2){
-      return null;
-    }
-
-    let name = message.split(" ").map(name => name.toLowerCase());
-    return name;
-  };
-
-  const handleGetUri = async (memberName) => {
-    let { data } = await axios.get("https://api.propublica.org/congress/v1/116/senate/members.json", proPublicaApiOptions);
-    let memberData = data.results[0].members.filter((mem) => mem.first_name.toLowerCase() === memberName[0] && mem.last_name.toLowerCase() === memberName[1]);
-    return memberData.length > 0 ? memberData[0].api_uri : null;
-  };
 
   const handleGetCommittees = async (memUri) => {
     let { data } = await axios.get(memUri, proPublicaApiOptions);
@@ -59,37 +44,27 @@ var appRouter = (app, db) => {
     });
   };
 
-  const handleGetMemberUri = async(textBody, res) => {
-     let memberName = await parseName(textBody);
-     if(!memberName){
-	     return null;
-     };
-     
-     let memUri = await handleGetUri(memberName); // Get member's URI (url string)
-     if (!memUri) {
-	     return null;
-     };
-     
-     return memUri;
-  };
-
-  const handleRoute = async (lastRsp, textBody, From, res) => {
-    console.log(lastRsp, textBody);
-    if(lastRsp == 0){
-	    await routeOne(textBody, From, res);
-    };
+  const handleRoute = async (From, res, user) => {       
+    let { lastRsp, text, uriString } = user; // Some of these could be undefined...
+    switch(lastRsp){
+    	case 0:
+	  await routeOne(text, From, res);
+	  break;
+	case 1:
+	  await routeTwo(text, uriString, From, res);
+	  break;
+	default:
+	  break;
+    }
   };
 
   app.post("/sms", async(req,res) => {
 
     const msg = req.body;
-    let { Body, From } = msg;
-     
+    let { From, Body } = msg;
     From = From.replace(/[^0-9]/g, "");
-    
     let user = await findOrCreateUser({ number: Number.parseInt(From), text: Body });
-    let { lastRsp, textBody } = user;
-    await handleRoute(lastRsp, Body, From, res);
+    await handleRoute(From, res, user);
 
     //  let memCommittees = await handleGetCommittees(memUri); // Get member's committee assignments (list)
     //  if (!memCommittees) {

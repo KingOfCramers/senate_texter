@@ -1,8 +1,8 @@
 const users = require("../schemas/users");
 
 module.exports = {
-    find: async (Model) => {
-        let data = await Model.find({});
+    findByNum: async (number) => {
+        let data = await Model.find({ number: number });
         data = data.map(datum => datum.toObject());
         return data;
     },
