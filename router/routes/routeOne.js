@@ -5,8 +5,8 @@ const axios = require("axios");
 
   const proPublicaApiOptions = { headers: { 'X-API-Key': process.env.PRO_PUBLICA }}; // Set options for Pro Publica API.
 
-const handleGetUri = async (memberName) => {
-    let { data } = await axios.get("https://api.propublica.org/congress/v1/116/senate/members.json", proPublicaApiOptions);
+const handleGetUri = async (memberName, chamber) => {
+    let { data } = await axios.get(`https://api.propublica.org/congress/v1/116/${chamber}/members.json`, proPublicaApiOptions);
     let memberData = data.results[0].members.filter((mem) => mem.first_name.toLowerCase() === memberName[0] && mem.last_name.toLowerCase() === memberName[1]);
     return memberData.length > 0 ? memberData[0].api_uri : null;
 };
@@ -23,21 +23,19 @@ const handleGetUri = async (memberName) => {
 const handleGetMemberUri = async(textBody, res) => {
      let memberName = await parseName(textBody);
      if(!memberName){
-	     return null;
+       return null;
      };
      
-     let memUri = await handleGetUri(memberName); // Get member's URI (url string)
-     if(!memUri){
-     	return null;
-     }
-     return memUri;
+     let senateUri = await handleGetUri(memberName, 'senate');
+     let houseUri = await handleGetUri(memberName, 'house');
+     let results = senateUri || houseUri || null; // Assign uri to matching member, or null.
+     return results
 };
 
 module.exports = async(textBody, From, res) => {
       let memUri = await handleGetMemberUri(textBody, res);
-      console.log(memUri);
       if(!memUri){
-        return handleNoDataFound('Please enter a first and last name.', res);
+        return handleNoDataFound('Please enter a valid first and last name.', res); 
       } else {
         await updateUri(memUri, From);
         await updateLastRsp(1, From);  

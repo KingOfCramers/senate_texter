@@ -36,7 +36,7 @@ const chooseQuery = async(text, uriString, From, res) => {
 module.exports = async(text, user, From, res) => {
       let data = await chooseQuery(text, user, From);
       if(!data){
-        await handleNoDataFound('That is not a valid query.', res);
+        await handleNoDataFound("I'm not able to find that information.", res);
         await updateLastRsp(0, From);  
       } else {
         await updateLastRsp(0, From);  
