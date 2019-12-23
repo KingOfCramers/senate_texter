@@ -1,29 +1,14 @@
 const MessagingResponse = require('twilio').twiml.MessagingResponse;
-const { find, updateUri, updateLastRsp } = require("../mongodb/methods/");
 const users = require("../mongodb/schemas/users");
 const { sfrc, hfac, ssev } = require("../mongodb/schemas/committees");
 const moment = require("moment");
 const axios = require("axios");
+const routeOne = require("./routes/routeOne.js");
 
 var appRouter = (app, db) => {
   
   const proPublicaApiOptions = { headers: { 'X-API-Key': process.env.PRO_PUBLICA }}; // Set options for Pro Publica API.
   
-  const promptNextQuestion = async (successMessage, res) => {
-    const twiml = new MessagingResponse();
-    twiml.message(successMessage);
-    res.writeHead(200, { 'Content-Type': 'text/xml' });
-    res.end(twiml.toString());
-  };
-
-  const handleNoDataFound = async (failMessage, res) => {
-    const twiml = new MessagingResponse();
-    twiml.message(failMessage);
-    res.writeHead(200, { 'Content-Type': 'text/xml' });
-    res.end(twiml.toString());
-  };
-
-
   const findOrCreateUser = async ({ number, text }) => { // Newly created user will have lastRsp = 1;
     let query = { number };
     let update = { number, text };
@@ -88,24 +73,10 @@ var appRouter = (app, db) => {
      return memUri;
   };
 
-	const handleUpdateUserUri = async(uri, from) => {
-	  await updateUri(uri, from);
-	};
-
-	const handleIterateUserLastRsp = async(num, from) => {
-	  await updateLastRsp(num, from); 
-	};
-
   const handleRoute = async (lastRsp, textBody, From, res) => {
+    console.log(lastRsp, textBody);
     if(lastRsp == 0){
-      let memUri = await handleGetMemberUri(textBody, res);
-      if(!memUri){
-        return handleNoDataFound('Please enter a first and last name.', res);
-      } else {
-        await handleUpdateUserUri(memUri, From);
-        await handleIterateUserLastRsp(1, From);  
-        await promptNextQuestion("What would you like to know?", res);
-      }
+	    await routeOne(textBody, From, res);
     };
   };
 
