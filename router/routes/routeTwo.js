@@ -41,23 +41,46 @@ const handleGetContactInfo = async (uri) => {
 const handleGetCommittees = async (memUri) => {
   let { data } = await axios.get(memUri, proPublicaApiOptions);
   
-  // Get committees, return a string..
-  let currentCommittees = data.results[0].roles.filter(role => role.congress == '116' )[0].committees;
-  let committeeNames = currentCommittees.length > 0 ? currentCommittees.map(committee => committee.title !== "Member" ? committee.name.concat(` (${committee.title})`) : committee.name).join("\n") : null;
+  // Get committees and subcommittees...
+  let committees = data.results[0].roles.filter(role => role.congress == '116' )[0].committees;
+  let subcommittees = data.results[0].roles.filter(role => role.congress == '116' )[0].subcommittees;
   
-  // Get subcommittee api uri string,
-  let currentSubcommittees = data.results[0].roles.filter(role => role.congress == '116' )[0].subcommittees;
-  if(currentSubcommittees.length > 0){
-    let promises = currentSubcommittees.map(async(sub) => await axios.get(sub.api_uri, proPublicaApiOptions));
-    let subcommitteeData = await Promise.all(promises) // For each string, determine full name, return it w/ subcommittee name.
-    let subcommitteeNames = subcommitteeData.map(({ data }) => {
-      let committeeName = data.results[0].committee_name;
-      let subcommitteeName = data.results[0].name;
-      return `${committeeName} (${subcommitteeName} Subcommittee)`;
-    }).join("\n");
-    committeeNames = committeeNames.concat(`\n ${subcommitteeNames}`);
-  };
-  return committeeNames;
+  // Nest subcommittees under committee names.
+  let filteredCommittees = committees.reduce((agg, committee) => {
+    let code = committee.code;
+    let relevantSubcommittees = subcommittees.filter((sub) => sub.parent_committee_id === code);
+    agg.push({ committee, subcommittees: relevantSubcommittees, });
+    return agg;
+}, []).map(data => {
+    let committeeName = data.committee.name;
+    let committeePosition = data.committee.title !== "Member" ? data.committee.title : null;
+    let subcommitteeData = data.subcommittees.map(data => ({ name: data.name, title: data.title !== "Member" ? data.title : null }));
+    return ({ committeeName, committeePosition, subcommitteeData });
+  });
+
+  let string = filteredCommittees.reduce((agg, data) => {
+    agg = agg.concat(`${data.committeeName} `);
+    if(data.committeePosition){
+        agg = agg.concat(`(${data.committeePosition}) `)
+    };
+    agg = agg.concat("\n");
+
+    if(data.subcommitteeData.length > 0){
+        agg = agg.concat(`Subcommittees: `)
+        data.subcommitteeData.forEach((sub) => {
+            agg = agg.concat(`${sub.name.replace(" Subcommittee", "")}`);
+            if(!!sub.title){ // This is wrong.
+                agg = agg.concat(` (${sub.title}); `);
+            } else {
+                agg = agg.concat(`; `);
+            }
+        });
+        agg = agg.concat("\n")
+    };
+    return agg;
+  }, '');
+
+  return string;
 };
 
 const getHearingSked = async (committeeSchema, theDate) => {
