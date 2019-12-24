@@ -16,30 +16,8 @@ const handleGetContactInfo = async (uri) => {
   };
 };
 
-
-  //  let memCommittees = await handleGetCommittees(memUri); // Get member's committee assignments (list)
-  //  if (!memCommittees) {
-  //    return handleNoDataFound('Sorry, that member does not appear to have any committee assignments.', res);
-  //  };
-
-  //  /// THIS IS ONLY HERE, the i === 0 thing, because we don't have the other committees set up yet.
-  //  let committeeSchemas = handleGetCommitteeSchemas(memCommittees);
-  //  let promises = committeeSchemas.map(async(committeeSchema, i) => i == 0 ? await getHearingSked(committeeSchema, moment().unix()) : Promise.resolve([])); // Get the schedule for each hearing.
-  //  let hearingData = await Promise.all(promises);
-  //  let totalHearings = hearingData.reduce((agg, committee) => {
-  //    agg = agg + committee.length;
-  //    return agg;
-  //  }, 0);
-  
-  //  if(totalHearings == 0){
-  //    return handleNoDataFound('Sorry, that member does not appear to have any upcoming committees.', res);
-  //  };
-  
-  //  let finalResponse = parseData(hearingData);
-  //  sendCommitteeData(finalResponse, res);
-
-const handleGetCommittees = async (memUri) => {
-  let { data } = await axios.get(memUri, proPublicaApiOptions);
+const handleGetCommittees = async (uri) => {
+  let { data } = await axios.get(uri, proPublicaApiOptions);
   
   // Get committees and subcommittees...
   let committees = data.results[0].roles.filter(role => role.congress == '116' )[0].committees;
@@ -75,7 +53,7 @@ const handleGetCommittees = async (memUri) => {
                 agg = agg.concat(`; `);
             }
         });
-        agg = agg.concat("\n")
+        agg = agg.concat("\n\n")
     };
     return agg;
   }, '');
@@ -83,21 +61,16 @@ const handleGetCommittees = async (memUri) => {
   return string;
 };
 
-const getHearingSked = async (committeeSchema, theDate) => {
-  let hearings = await find(committeeSchema);
-  hearings = hearings.map(hearing => ({ compare: moment(`${hearing.date} ${hearing.time}`).unix(), ...hearing }));
-  let newHearings = hearings.filter(hearing => hearing.compare > theDate);
-  return newHearings;
-};
-
-const handleGetCommitteeSchemas = (committees) => {
-  return committees.map(committee => {
-    switch(committee.toLowerCase()){
-      case 'ssev':
-        return ssev;
-        /// And so on and so forth for all the committees...          
-    }
-  });
+const handleGetVotingRecord = async(uri) => {
+  let { data } = await axios.get(uri, proPublicaApiOptions);
+  if(data.results.length > 0){
+    let currentRole = data.results[0].roles.filter(role => role.congress == "116");
+    let { total_votes, missed_votes, bills_sponsored, bills_cosponsored, votes_against_party_pct, missed_votes_pct } = currentRole[0];
+    let results = `Total Votes: ${total_votes}\n Missed Votes: ${missed_votes}\n Bills Sponsored: ${bills_sponsored}\n Bills Cosponsored: ${bills_cosponsored}\n Votes Against Party: ${votes_against_party_pct}%\n Missed Votes: ${missed_votes_pct}%`;
+	  return results;
+  } else {
+    return "We could not find that member's voting record."
+  };
 };
 
 const chooseQuery = async(text, uriString, From, res) => {
@@ -114,7 +87,12 @@ const chooseQuery = async(text, uriString, From, res) => {
     case "committtee":
     case "committee assignments":
       let committees = await handleGetCommittees(uriString)
-		  return committees;
+      return committees;
+    case "voting record":
+    case "voting":
+    case "record":
+      let record = await handleGetVotingRecord(uriString);
+      return record;
 	  default:
 		  return null;
 	}
@@ -130,3 +108,42 @@ module.exports = async(text, user, From, res) => {
         await updateLastRsp(0, From);
       }
 };
+
+
+//  let memCommittees = await handleGetCommittees(memUri); // Get member's committee assignments (list)
+  //  if (!memCommittees) {
+  //    return handleNoDataFound('Sorry, that member does not appear to have any committee assignments.', res);
+  //  };
+
+  //  /// THIS IS ONLY HERE, the i === 0 thing, because we don't have the other committees set up yet.
+  //  let committeeSchemas = handleGetCommitteeSchemas(memCommittees);
+  //  let promises = committeeSchemas.map(async(committeeSchema, i) => i == 0 ? await getHearingSked(committeeSchema, moment().unix()) : Promise.resolve([])); // Get the schedule for each hearing.
+  //  let hearingData = await Promise.all(promises);
+  //  let totalHearings = hearingData.reduce((agg, committee) => {
+  //    agg = agg + committee.length;
+  //    return agg;
+  //  }, 0);
+  
+  //  if(totalHearings == 0){
+  //    return handleNoDataFound('Sorry, that member does not appear to have any upcoming committees.', res);
+  //  };
+  
+  //  let finalResponse = parseData(hearingData);
+  //  sendCommitteeData(finalResponse, res);
+
+  const getHearingSked = async (committeeSchema, theDate) => {
+    let hearings = await find(committeeSchema);
+    hearings = hearings.map(hearing => ({ compare: moment(`${hearing.date} ${hearing.time}`).unix(), ...hearing }));
+    let newHearings = hearings.filter(hearing => hearing.compare > theDate);
+    return newHearings;
+  };
+  
+  const handleGetCommitteeSchemas = (committees) => {
+    return committees.map(committee => {
+      switch(committee.toLowerCase()){
+        case 'ssev':
+          return ssev;
+          /// And so on and so forth for all the committees...          
+      }
+    });
+  };

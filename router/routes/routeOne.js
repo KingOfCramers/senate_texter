@@ -2,8 +2,7 @@ const { promptNextQuestion, handleNoDataFound } = require("./texts.js");
 const { updateUri, updateLastRsp } = require("../../mongodb/methods/");
 const axios = require("axios");
 
-
-  const proPublicaApiOptions = { headers: { 'X-API-Key': process.env.PRO_PUBLICA }}; // Set options for Pro Publica API.
+const proPublicaApiOptions = { headers: { 'X-API-Key': process.env.PRO_PUBLICA }}; // Set options for Pro Publica API.
 
 const handleGetUri = async (memberName, chamber) => {
     let { data } = await axios.get(`https://api.propublica.org/congress/v1/116/${chamber}/members.json`, proPublicaApiOptions);
