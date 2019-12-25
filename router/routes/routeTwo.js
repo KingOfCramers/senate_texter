@@ -8,7 +8,8 @@ const handleGetContactInfo = async (uri) => {
   let { data } = await axios.get(uri, proPublicaApiOptions);
   if(data.results.length > 0){
     let currentRole = data.results[0].roles.filter(role => role.congress == "116");
-    let { office, phone, twitter_account, fax } = currentRole[0];
+    let { office, phone, fax } = currentRole[0];
+    let { twitter_account } = data.results[0];
     let results = `${office}\n Phone: ${phone}\n Twitter: ${twitter_account}\n Fax: ${fax}`;
 	  return results
   } else {
@@ -73,8 +74,6 @@ const handleGetVotingRecord = async(uri) => {
   };
 };
 
-
-
 const chooseQuery = async(text, uriString, From, res) => {
   switch(text.toLowerCase()){
     case "contact":
@@ -103,7 +102,7 @@ const chooseQuery = async(text, uriString, From, res) => {
 
 module.exports = async(text, user, From, res) => {
       let data = await chooseQuery(text, user, From);
-      data = data.concat("\n\n Type the name of another lawmaker to get new information.")
+      data = data.concat("\nType the name of another lawmaker to get new information.")
       if(!data){
         await handleNoDataFound("I'm not able to find that information. Type the name of a lawmaker to try again.", res);
         await updateLastRsp(0, From);  
